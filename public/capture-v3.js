@@ -1,22 +1,15 @@
 (() => {
-  // ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
-  // ▼▼▼ APIのURLを自動で解決する ▼▼▼
-  // このスクリプトタグ自身を取得します。
+  // APIのURLを自動で解決
   const scriptTag = document.currentScript;
   if (!scriptTag) {
-    // もし何らかの理由でスクリプトタグが見つからない場合は、処理を中断します。
     console.error("Cannot find the script tag to determine API URL.");
     return;
   }
-  // スクリプトのsrc属性から、サーバーのベースURL（例: https://xxxx.vercel.app）を取得します。
   const scriptSrc = scriptTag.src;
   const baseUrl = new URL(scriptSrc).origin;
-  // ベースURLとAPIのエンドポイントを結合して、完全なAPIのURLを作成します。
   const apiUrl = `${baseUrl}/api/generate-captcha`;
-  // ▲▲▲ APIのURL解決ここまで ▲▲▲
-  // ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
 
-  // === 動的CSS追加 ===
+  // (CSSやモーダルDOMの作成部分は変更なし)
   const style = document.createElement('style');
   style.textContent = `
     .myCaptchaModal {
@@ -64,8 +57,6 @@
     #toggleDarkMode { font-size: 20px; padding: 4px 12px; user-select: none; outline: none; }
   `;
   document.head.appendChild(style);
-
-  // === 動的モーダルDOM作成 ===
   const modal = document.createElement('div');
   modal.className = 'myCaptchaModal hidden';
   modal.innerHTML = `
@@ -85,8 +76,6 @@
     </div>
   `;
   document.body.appendChild(modal);
-
-  // === 要素参照 ===
   const imageLoadingText = modal.querySelector('#imageLoadingText');
   const captchaImageEl = modal.querySelector('#captchaImage');
   const captchaInputEl = modal.querySelector('#captchaInput');
@@ -95,30 +84,32 @@
   const captchaMsgEl = modal.querySelector('#captchaMessage');
   const toggleDarkBtn = modal.querySelector('#toggleDarkMode');
 
-  // === 変数 ===
-  const CHECK_DURATION_MS = 2000;
-  const BOT_SCORE_THRESHOLD = 1;
-  let mouseMoveCount = 0, scrollCount = 0, focusChanges = 0;
-  let startTime = Date.now();
-  let isBot = true;
   let failedCount = 0;
   let locked = false;
   let darkMode = false;
   let currentCaptchaText = '';
   let activeHandlers = {};
 
-  // === ユーザー操作監視 ===
-  document.addEventListener('mousemove', () => mouseMoveCount++);
-  document.addEventListener('scroll', () => scrollCount++);
-  window.addEventListener('blur', () => focusChanges++);
-  setTimeout(() => {
-    const elapsed = (Date.now() - startTime) / 1000;
-    const activityScore = (mouseMoveCount + scrollCount + focusChanges) / elapsed;
-    isBot = activityScore < BOT_SCORE_THRESHOLD;
-    console.log(`[BotCheck] 判定: ${isBot ? 'Botの可能性あり' : '人間'} | スコア: ${activityScore.toFixed(2)}`);
-  }, CHECK_DURATION_MS);
+  // === ボット検知機能は残しつつも、認証処理では使わないようにします ===
+  (() => {
+    const CHECK_DURATION_MS = 2000;
+    const BOT_SCORE_THRESHOLD = 1;
+    let mouseMoveCount = 0, scrollCount = 0, focusChanges = 0;
+    let startTime = Date.now();
+    document.addEventListener('mousemove', () => mouseMoveCount++);
+    document.addEventListener('scroll', () => scrollCount++);
+    window.addEventListener('blur', () => focusChanges++);
+    setTimeout(() => {
+      const elapsed = (Date.now() - startTime) / 1000;
+      const activityScore = (mouseMoveCount + scrollCount + focusChanges) / elapsed;
+      const isConsideredBot = activityScore < BOT_SCORE_THRESHOLD;
+      // コンソールへのログ表示は残しておきます
+      console.log(`[BotCheck] 判定: ${isConsideredBot ? 'Botの可能性あり' : '人間'} | スコア: ${activityScore.toFixed(2)}`);
+    }, CHECK_DURATION_MS);
+  })();
 
-  // === ランダム文字列生成 ===
+
+  // (generateRandomString, hideModal, showModal, toggleDarkModeの各関数は変更なし)
   function generateRandomString(length = 6) {
     const chars = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     let result = '';
@@ -127,16 +118,12 @@
     }
     return result;
   }
-
   function hideModal() {
     modal.classList.add('hidden');
-    // メモリリークを防ぐため、不要になったイベントリスナーを削除
     if (activeHandlers.ok) captchaOkBtn.removeEventListener('click', activeHandlers.ok);
     if (activeHandlers.cancel) captchaCancelBtn.removeEventListener('click', activeHandlers.cancel);
     if (activeHandlers.keydown) captchaInputEl.removeEventListener('keydown', activeHandlers.keydown);
   }
-
-  // === モーダル表示・画像生成 ===
   async function showModal() {
     modal.classList.remove('hidden');
     captchaInputEl.value = '';
@@ -146,22 +133,17 @@
     imageLoadingText.style.display = 'block';
     captchaImageEl.style.display = 'none';
     captchaImageEl.src = '';
-    
     currentCaptchaText = generateRandomString();
-
     try {
-      // バックエンドAPIにリクエストを送信（URLは先頭で定義したapiUrlを使います）
       const response = await fetch(apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: currentCaptchaText }),
       });
-
       if (!response.ok) {
         const err = await response.json();
         throw new Error(err.error || 'サーバーエラーが発生しました。');
       }
-
       const data = await response.json();
       captchaImageEl.src = `data:image/png;base64,${data.imageData}`;
       imageLoadingText.style.display = 'none';
@@ -175,8 +157,6 @@
       locked = true;
     }
   }
-  
-  // === ダークモード切替 ===
   toggleDarkBtn.onclick = () => {
     darkMode = !darkMode;
     modal.classList.toggle('dark', darkMode);
@@ -197,10 +177,16 @@
     }
     const urlSuccess = linkEl.dataset.urlSuccess;
 
+    // ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
+    // ▼▼▼ このifブロックを削除、またはコメントアウトします ▼▼▼
+    /*
     if (!isBot) {
       location.href = urlSuccess;
       return;
     }
+    */
+    // ▲▲▲ これで常にCAPTCHAが表示されるようになります ▲▲▲
+    // ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
     
     const onOk = () => {
       if (locked) return;
@@ -238,7 +224,6 @@
       }
     };
 
-    // 古いハンドラを削除してから新しいハンドラを登録
     if (activeHandlers.ok) captchaOkBtn.removeEventListener('click', activeHandlers.ok);
     if (activeHandlers.cancel) captchaCancelBtn.removeEventListener('click', activeHandlers.cancel);
     if (activeHandlers.keydown) captchaInputEl.removeEventListener('keydown', activeHandlers.keydown);
