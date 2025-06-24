@@ -1,4 +1,15 @@
 // @ts-check
+import { GoogleGenerativeAI } from "@google/generative-ai";
+
+/**
+ * すべてのリクエストに対してCORSヘッダーを設定するヘルパー関数
+ * @param {import('@vercel/node').VercelResponse} res
+ */
+function setCorsHeaders(res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+}
 
 /**
  * Vercel Serverless Function
@@ -6,7 +17,22 @@
  * @param {import('@vercel/node').VercelResponse} res
  */
 export default async function handler(req, res) {
-  // vercel.jsonがCORSを処理するので、POST以外のチェックだけでOK
+  // ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
+  // ▼▼▼ 新しいCORS処理 ▼▼▼
+
+  // 1. すべての応答にCORSヘッダーを付与する
+  setCorsHeaders(res);
+
+  // 2. ブラウザからの事前確認(Preflight)リクエスト(OPTIONS)に正しく応答する
+  if (req.method === 'OPTIONS') {
+    // ステータス204 (No Content)で応答し、処理を終了する
+    return res.status(204).end();
+  }
+
+  // ▲▲▲ 新しいCORS処理ここまで ▲▲▲
+  // ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
+
+  // POSTリクエスト以外は拒否します。
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
@@ -18,28 +44,16 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: 'サーバー側でAPIキーが設定されていません。' });
     }
 
-    const { text } = req.body; 
+    const { text } = req.body;
     if (!text || typeof text !== 'string' || text.length === 0) {
       return res.status(400).json({ error: '画像に埋め込むテキストを指定してください。' });
     }
-
-    // ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
-    // ▼▼▼ 画像生成モデル用の正しいAPI呼び出し ▼▼▼
     
-    // 1. 正しいAPIエンドポイントを指定します (:predict)
+    // 画像生成モデル用の正しいAPIエンドポイントを指定します (:predict)
     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key=${apiKey}`;
 
-    // 2. 正しい命令形式（ペイロード）を作成します
-    const payload = {
-      instances: [{ "prompt": text }],
-      parameters: {
-        "sampleCount": 1,
-        "aspectRatio": "4:1", // 400x100の比率
-      }
-    };
-    
-    // プロンプトを修正し、よりCAPTCHAらしくします
-    payload.instances[0].prompt = `
+    // プロンプトを定義します
+    const prompt = `
       Create a heavily distorted and noisy CAPTCHA image, with a plain white background.
       The image must contain only the exact text: "${text}".
       The text must be warped, stretched, and rotated. Use multiple overlapping fonts and sizes.
@@ -47,8 +61,15 @@ export default async function handler(req, res) {
       The final output must be a single image file. Do not add any extra text or explanation.
     `;
 
+    // 正しい命令形式（ペイロード）を作成します
+    const payload = {
+      instances: [{ "prompt": prompt }],
+      parameters: {
+        "sampleCount": 1,
+        "aspectRatio": "4:1",
+      }
+    };
 
-    // 3. APIを呼び出します
     const apiResponse = await fetch(apiUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -62,17 +83,12 @@ export default async function handler(req, res) {
     }
 
     const result = await apiResponse.json();
-    
-    // 4. 正しい場所から画像データ（Base64）を取得します
     const imageBase64 = result?.predictions?.[0]?.bytesBase64Encoded;
 
     if (!imageBase64) {
       console.error("AI Response does not contain image data:", JSON.stringify(result, null, 2));
       throw new Error('AIからのレスポンスに画像データが含まれていません。');
     }
-
-    // ▲▲▲ API呼び出しここまで ▲▲▲
-    // ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
     
     return res.status(200).json({ imageData: imageBase64 });
 
