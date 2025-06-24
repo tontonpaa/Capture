@@ -1,6 +1,17 @@
 {
+  "name": "ai-captcha-service",
+  "version": "1.0.0",
+  "description": "An AI-powered CAPTCHA image generation service.",
+  "private": true,
+  "scripts": {
+    "dev": "vercel dev"
+  },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
     "express": "^5.1.0"
+  },
+  "devDependencies": {
+    "@vercel/node": "^3.2.0",
+    "vercel": "^34.2.7"
   }
 }
