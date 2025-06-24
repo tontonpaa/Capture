@@ -66,7 +66,7 @@ export default async function handler(req, res) {
       instances: [{ "prompt": prompt }],
       parameters: {
         "sampleCount": 1,
-        "aspectRatio": "4:1",
+        "aspectRatio": "16:9",
       }
     };
 
