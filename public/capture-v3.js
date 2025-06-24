@@ -1,4 +1,21 @@
 (() => {
+  // ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
+  // ▼▼▼ APIのURLを自動で解決する ▼▼▼
+  // このスクリプトタグ自身を取得します。
+  const scriptTag = document.currentScript;
+  if (!scriptTag) {
+    // もし何らかの理由でスクリプトタグが見つからない場合は、処理を中断します。
+    console.error("Cannot find the script tag to determine API URL.");
+    return;
+  }
+  // スクリプトのsrc属性から、サーバーのベースURL（例: https://xxxx.vercel.app）を取得します。
+  const scriptSrc = scriptTag.src;
+  const baseUrl = new URL(scriptSrc).origin;
+  // ベースURLとAPIのエンドポイントを結合して、完全なAPIのURLを作成します。
+  const apiUrl = `${baseUrl}/api/generate-captcha`;
+  // ▲▲▲ APIのURL解決ここまで ▲▲▲
+  // ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
+
   // === 動的CSS追加 ===
   const style = document.createElement('style');
   style.textContent = `
@@ -103,7 +120,7 @@
 
   // === ランダム文字列生成 ===
   function generateRandomString(length = 6) {
-    const chars = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // 似ている文字(1,i,l,0,O)を除外
+    const chars = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     let result = '';
     for (let i = 0; i < length; i++) {
       result += chars[Math.floor(Math.random() * chars.length)];
@@ -113,10 +130,10 @@
 
   function hideModal() {
     modal.classList.add('hidden');
-    // イベントリスナーをクリーンアップ
-    captchaOkBtn.removeEventListener('click', activeHandlers.ok);
-    captchaCancelBtn.removeEventListener('click', activeHandlers.cancel);
-    captchaInputEl.removeEventListener('keydown', activeHandlers.keydown);
+    // メモリリークを防ぐため、不要になったイベントリスナーを削除
+    if (activeHandlers.ok) captchaOkBtn.removeEventListener('click', activeHandlers.ok);
+    if (activeHandlers.cancel) captchaCancelBtn.removeEventListener('click', activeHandlers.cancel);
+    if (activeHandlers.keydown) captchaInputEl.removeEventListener('keydown', activeHandlers.keydown);
   }
 
   // === モーダル表示・画像生成 ===
@@ -133,8 +150,8 @@
     currentCaptchaText = generateRandomString();
 
     try {
-      // バックエンドAPIにリクエストを送信
-      const response = await fetch('/api/generate-captcha', {
+      // バックエンドAPIにリクエストを送信（URLは先頭で定義したapiUrlを使います）
+      const response = await fetch(apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: currentCaptchaText }),
@@ -185,7 +202,6 @@
       return;
     }
     
-    // イベントハンドラの定義
     const onOk = () => {
       if (locked) return;
       const input = captchaInputEl.value.trim();
@@ -233,7 +249,7 @@
 
     activeHandlers = { ok: onOk, cancel: onCancel, keydown: onKeydown };
     
-    // 最初のモーダル表示
+    // 最初のモーダル表示を開始
     showModal();
   };
 })();
